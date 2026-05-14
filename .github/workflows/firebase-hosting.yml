@@ -1,0 +1,32 @@
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: "chat-283f4"
+            site: "nebula-prox"        
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          # 1. Map the generic target in firebase.json to the specific site for this matrix run
+          firebase target:apply hosting universal-site ${{ matrix.site }} --project ${{ matrix.project }}
+          
+          # 2. Deploy only that target to the specific project
+          firebase deploy --only hosting:universal-site --project ${{ matrix.project }}
