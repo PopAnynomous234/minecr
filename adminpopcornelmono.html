@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Help - Admin Panel</title>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(ellipse 900px 600px at 10% 0%, rgba(139,92,246,0.16), transparent 60%),
+      radial-gradient(ellipse 800px 700px at 95% 10%, rgba(59,130,246,0.12), transparent 60%),
+      radial-gradient(ellipse 900px 800px at 50% 110%, rgba(236,72,153,0.08), transparent 60%),
+      #000000;
+    color: #e8e8ec; height: 100vh; overflow: hidden;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
+
+  .glass {
+    background: rgba(255,255,255,0.045);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.09);
+  }
+
+  /* ---------- Login ---------- */
+  #login-gate {
+    height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  #login-form {
+    width: 300px; display: flex; flex-direction: column; gap: 12px;
+    padding: 32px 28px; border-radius: 20px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 1px 0 rgba(255,255,255,0.1) inset;
+  }
+  #login-form .mark {
+    width: 42px; height: 42px; border-radius: 12px; margin: 0 0 6px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(210,210,220,0.7));
+    display: flex; align-items: center; justify-content: center; font-weight: 700; color: #0a0a0c; font-size: 18px;
+  }
+  #login-form h2 { margin: 0 0 2px; font-size: 17px; font-weight: 600; letter-spacing: 0.01em; }
+  #login-form .sub { margin: 0 0 10px; font-size: 12px; color: rgba(255,255,255,0.4); }
+  #login-form input {
+    padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05); color: #fff; font-size: 13px;
+  }
+  #login-form input::placeholder { color: rgba(255,255,255,0.35); }
+  #login-form input:focus { outline: none; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 0 3px rgba(255,255,255,0.08); }
+  #login-form button {
+    padding: 11px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.18); margin-top: 4px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(225,225,232,0.85));
+    color: #0a0a0c; font-weight: 600; cursor: pointer; font-size: 13px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  #login-form button:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,255,255,0.15); }
+  #login-status { font-size: 12px; color: #fca5a5; min-height: 16px; margin: 0; }
+
+  /* ---------- Shell ---------- */
+  #layout { display: grid; grid-template-rows: 60px 1fr; height: 100vh; }
+
+  #topbar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0));
+  }
+  #topbar .brand { display: flex; align-items: center; gap: 10px; }
+  #topbar .brand .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #fff, #9ca3af);
+    box-shadow: 0 0 10px rgba(255,255,255,0.6);
+  }
+  #topbar .brand h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: 0.02em; }
+  #topbar .brand span.tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.12);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  #perm-btn {
+    font-size: 12px; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #e8e8ec;
+    transition: background 0.2s ease;
+  }
+  #perm-btn:hover { background: rgba(255,255,255,0.1); }
+  #perm-btn:disabled { opacity: 0.5; cursor: default; }
+
+  #body-shell { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar { display: flex; flex-direction: column; border-right: 1px solid rgba(255,255,255,0.08); min-height: 0; }
+  #sidebar-head {
+    padding: 14px 16px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.35);
+  }
+  #session-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .session-item {
+    padding: 12px; border-radius: 14px; cursor: pointer; display: flex; gap: 10px; align-items: flex-start;
+    margin-bottom: 4px; border: 1px solid transparent; transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .session-item:hover { background: rgba(255,255,255,0.05); }
+  .session-item.active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.14); }
+  .session-item .avatar {
+    width: 32px; height: 32px; border-radius: 50%; flex: none;
+    background: linear-gradient(145deg, rgba(255,255,255,0.85), rgba(190,190,200,0.5));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #0a0a0c;
+  }
+  .session-item .body { min-width: 0; flex: 1; }
+  .session-item .name { font-weight: 600; font-size: 13px; display: block; }
+  .session-item .meta { font-size: 11px; color: rgba(255,255,255,0.4); display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    display: inline-block; font-size: 10px; padding: 2px 9px; border-radius: 999px; margin-top: 6px;
+    width: fit-content; letter-spacing: 0.02em; border: 1px solid transparent;
+  }
+  .badge.pending { background: rgba(250,199,117,0.14); color: #fac775; border-color: rgba(250,199,117,0.25); }
+  .badge.active  { background: rgba(151,196,89,0.14); color: #a8d16b; border-color: rgba(151,196,89,0.28); }
+  .badge.resolved{ background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.45); border-color: rgba(255,255,255,0.1); }
+
+  /* ---------- Main ---------- */
+  #main { display: flex; flex-direction: column; min-height: 0; }
+  #empty-state {
+    display: flex; align-items: center; justify-content: center; height: 100%;
+    color: rgba(255,255,255,0.3); font-size: 13px;
+  }
+
+  #chat-shell { display: none; flex-direction: column; height: 100%; min-height: 0; }
+
+  #chat-header {
+    padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  }
+  #chat-header .info h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  #chat-header .info p { margin: 2px 0 0; font-size: 12px; color: rgba(255,255,255,0.4); }
+  #chat-header .actions { display: flex; gap: 8px; }
+  #chat-header button {
+    padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #e8e8ec;
+    transition: background 0.2s ease, opacity 0.2s ease;
+  }
+  #chat-header button:hover { background: rgba(255,255,255,0.1); }
+  #chat-header button:disabled { opacity: 0.4; cursor: default; }
+  #chat-header button.primary {
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(225,225,232,0.85));
+    color: #0a0a0c; border-color: rgba(255,255,255,0.2);
+  }
+  #chat-header button.danger { background: rgba(226,75,74,0.16); border-color: rgba(226,75,74,0.3); color: #f0a3a3; }
+
+  #body-split { flex: 1; display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+
+  #messages { padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .msg { max-width: 68%; padding: 10px 13px; border-radius: 14px; font-size: 13px; line-height: 1.45; border: 1px solid rgba(255,255,255,0.08); }
+  .msg.user { align-self: flex-start; background: rgba(255,255,255,0.06); border-bottom-left-radius: 3px; }
+  .msg.admin {
+    align-self: flex-end; border-bottom-right-radius: 3px; border: none; color: #0a0a0c;
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(222,222,230,0.85));
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  }
+  .msg .ts { display: block; font-size: 10px; opacity: 0.55; margin-top: 5px; }
+
+  #composer {
+    padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 8px;
+    background: linear-gradient(0deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  }
+  #composer input {
+    flex: 1; padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.05); color: #fff; font-size: 13px;
+  }
+  #composer input::placeholder { color: rgba(255,255,255,0.35); }
+  #composer input:focus { outline: none; border-color: rgba(255,255,255,0.4); box-shadow: 0 0 0 3px rgba(255,255,255,0.08); }
+  #composer button {
+    padding: 0 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(225,225,232,0.85));
+    color: #0a0a0c; font-weight: 600; cursor: pointer; font-size: 13px;
+    transition: transform 0.15s ease;
+  }
+  #composer button:hover { transform: translateY(-1px); }
+
+  /* ---------- Screen share ---------- */
+  #screen-panel { border-left: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; min-height: 0; }
+  #screen-panel header {
+    padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.5);
+  }
+  #screen-video-wrap {
+    flex: 1; background: #000; display: flex; align-items: center; justify-content: center;
+    position: relative; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  #screen-video { width: 100%; height: 100%; object-fit: contain; display: none; }
+  #screen-empty { color: rgba(255,255,255,0.3); font-size: 12px; text-align: center; padding: 20px; }
+  #screen-controls { padding: 12px 16px; display: flex; gap: 8px; }
+  #screen-controls button {
+    flex: 1; padding: 9px; border-radius: 10px; cursor: pointer; font-size: 12px;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #e8e8ec;
+    transition: background 0.2s ease;
+  }
+  #screen-controls button:hover { background: rgba(255,255,255,0.1); }
+  #screen-status { font-size: 11px; color: rgba(255,255,255,0.4); padding: 0 16px 14px; }
+</style>
+</head>
+<body>
+<div id="login-gate">
+  <form id="login-form" class="glass">
+    <div class="mark">✦</div>
+    <h2>Admin login</h2>
+    <p class="sub">Sign in to manage live support sessions.</p>
+    <input id="login-email" type="email" placeholder="Email" required>
+    <input id="login-password" type="password" placeholder="Password" required>
+    <button type="submit">Log in</button>
+    <p id="login-status"></p>
+  </form>
+</div>
+
+<div id="layout" style="display:none;">
+  <div id="topbar" class="glass">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Live Help</h1>
+      <span class="tag">Admin</span>
+    </div>
+    <button id="perm-btn">Enable notifications</button>
+  </div>
+
+  <div id="body-shell">
+    <aside id="sidebar">
+      <div id="sidebar-head">Support requests</div>
+      <div id="session-list"></div>
+    </aside>
+
+    <main id="main">
+      <div id="empty-state">Select a support request from the left.</div>
+
+      <div id="chat-shell">
+        <div id="chat-header">
+          <div class="info">
+            <h2 id="chat-name">Guest</h2>
+            <p id="chat-email"></p>
+          </div>
+          <div class="actions">
+            <button id="mark-active" class="primary">Mark active</button>
+            <button id="mark-resolved" class="danger">Resolve</button>
+          </div>
+        </div>
+
+        <div id="body-split">
+          <div id="messages"></div>
+
+          <aside id="screen-panel" class="glass">
+            <header>Screen share</header>
+            <div id="screen-video-wrap">
+              <video id="screen-video" autoplay playsinline></video>
+              <div id="screen-empty">No active screen share offer.</div>
+            </div>
+            <div id="screen-controls">
+              <button id="join-screen">Join screen share</button>
+              <button id="leave-screen">Stop viewing</button>
+            </div>
+            <div id="screen-status"></div>
+          </aside>
+        </div>
+
+        <form id="composer">
+          <input id="composer-input" type="text" placeholder="Type a reply..." autocomplete="off" />
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAaOp3LYoMGbByON7W7pGQYV_oXJlmU_Hw",
+    authDomain: "starlight-28e40.firebaseapp.com",
+    databaseURL: "https://starlight-28e40-default-rtdb.firebaseio.com",
+    projectId: "starlight-28e40",
+    storageBucket: "starlight-28e40.firebasestorage.app",
+    messagingSenderId: "206859310211",
+    appId: "1:206859310211:web:3450cfa9fae7f6360a77b6",
+    measurementId: "G-G52TDH6GRY"
+  };
+
+  const RTC_CONFIG = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  };
+
+  if (!window.firebase) {
+    document.body.innerHTML = '<p style="color:#fca5a5;padding:20px;">Missing Firebase SDK. Check the firebase-*-compat.js script tags.</p>';
+    return;
+  }
+
+  const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+  const db = app.database();
+  const auth = app.auth ? app.auth() : null;
+
+  const loginGate = document.getElementById("login-gate");
+  const layout = document.getElementById("layout");
+  const loginForm = document.getElementById("login-form");
+  const loginStatus = document.getElementById("login-status");
+
+  if (!auth) {
+    document.body.innerHTML = '<p style="color:#fca5a5;padding:20px;">firebase-auth-compat.js is not loaded.</p>';
+    return;
+  }
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    loginStatus.textContent = "";
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (error) {
+      loginStatus.textContent = "Invalid email or password.";
+    }
+  });
+
+  auth.onAuthStateChanged((user) => {
+    if (user && !user.isAnonymous) {
+      loginGate.style.display = "none";
+      layout.style.display = "grid";
+      startDashboard();
+    } else {
+      loginGate.style.display = "flex";
+      layout.style.display = "none";
+    }
+  });
+
+  let dashboardStarted = false;
+
+  function startDashboard() {
+    if (dashboardStarted) return;
+    dashboardStarted = true;
+    watchSessionList();
+
+    const params = new URLSearchParams(window.location.search);
+    const preselect = params.get("session");
+    if (preselect) {
+      const tryPreselect = () => {
+        if (knownSessions[preselect]) {
+          selectSession(preselect);
+        } else {
+          setTimeout(tryPreselect, 300);
+        }
+      };
+      tryPreselect();
+    }
+  }
+
+  let activeSessionId = null;
+  let messagesListenerRef = null;
+  let statusListenerRef = null;
+  let sessionsRef = null;
+
+  let peerConnection = null;
+  let offerListenerRef = null;
+  let userCandidatesRef = null;
+
+  const listEl = document.getElementById("session-list");
+  const emptyState = document.getElementById("empty-state");
+  const chatShell = document.getElementById("chat-shell");
+  const chatName = document.getElementById("chat-name");
+  const chatEmail = document.getElementById("chat-email");
+  const messagesEl = document.getElementById("messages");
+  const composerForm = document.getElementById("composer");
+  const composerInput = document.getElementById("composer-input");
+  const markActiveBtn = document.getElementById("mark-active");
+  const markResolvedBtn = document.getElementById("mark-resolved");
+
+  const screenVideo = document.getElementById("screen-video");
+  const screenEmpty = document.getElementById("screen-empty");
+  const screenStatus = document.getElementById("screen-status");
+  const joinScreenBtn = document.getElementById("join-screen");
+  const leaveScreenBtn = document.getElementById("leave-screen");
+
+  const permBtn = document.getElementById("perm-btn");
+
+  function refreshPermButton() {
+    if (typeof Notification === "undefined") {
+      permBtn.textContent = "Notifications unsupported";
+      permBtn.disabled = true;
+      return;
+    }
+    if (Notification.permission === "granted") {
+      permBtn.textContent = "Notifications enabled";
+      permBtn.disabled = true;
+    } else {
+      permBtn.textContent = "Enable notifications";
+      permBtn.disabled = false;
+    }
+  }
+
+  permBtn.addEventListener("click", async () => {
+    if (typeof Notification === "undefined") return;
+    await Notification.requestPermission();
+    refreshPermButton();
+  });
+
+  refreshPermButton();
+
+  function showLocalNotification(title, body, url) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, {
+          body,
+          data: { url }
+        });
+      });
+      return;
+    }
+    const n = new Notification(title, { body });
+    n.onclick = () => {
+      window.focus();
+      if (url) applyUrlSelection(url);
+    };
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.error("[admin] Service worker registration failed", error);
+    });
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      const data = event.data || {};
+      if (data.type === "live-help-navigate" && data.url) {
+        applyUrlSelection(data.url);
+      }
+    });
+  }
+
+  function applyUrlSelection(url) {
+    try {
+      const parsed = new URL(url, window.location.origin);
+      const sessionParam = parsed.searchParams.get("session");
+      if (sessionParam) selectSession(sessionParam);
+    } catch (_error) {}
+  }
+
+  function badgeClass(status) {
+    if (status === "active") return "active";
+    if (status === "resolved") return "resolved";
+    return "pending";
+  }
+
+  function initials(name) {
+    const parts = String(name || "Guest").trim().split(/\s+/);
+    const letters = parts.slice(0, 2).map((p) => p[0] || "").join("");
+    return letters.toUpperCase() || "G";
+  }
+
+  let knownSessions = {};
+  let lastNotifiedCreatedAt = Date.now();
+
+  function renderList() {
+    const entries = Object.entries(knownSessions)
+      .sort((a, b) => (b[1].user_info?.createdAt || 0) - (a[1].user_info?.createdAt || 0));
+
+    listEl.innerHTML = "";
+    entries.forEach(([sessionId, data]) => {
+      const info = data.user_info || {};
+      const item = document.createElement("div");
+      item.className = "session-item" + (sessionId === activeSessionId ? " active" : "");
+      item.innerHTML = `
+        <span class="avatar">${escapeHtml(initials(info.name))}</span>
+        <span class="body">
+          <span class="name">${escapeHtml(info.name || "Guest")}</span>
+          <span class="meta">${escapeHtml(info.email || "no email")}</span>
+          <span class="badge ${badgeClass(info.status)}">${escapeHtml(info.status || "pending")}</span>
+        </span>
+      `;
+      item.addEventListener("click", () => selectSession(sessionId));
+      listEl.appendChild(item);
+    });
+  }
+
+  function watchSessionList() {
+    sessionsRef = db.ref("support_chats");
+
+    // Unified value listener ensures list updates reliably on initial load and updates
+    sessionsRef.on("value", (snap) => {
+      const value = snap.val() || {};
+
+      // Check for newly added items to trigger notifications safely
+      Object.entries(value).forEach(([key, val]) => {
+        if (!knownSessions[key]) {
+          const info = val.user_info || {};
+          const createdAt = Number(info.createdAt || 0);
+          if (createdAt > lastNotifiedCreatedAt) {
+           showLocalNotification("New Help Request!", `${info.name || "A visitor"} is requesting support.`, `/adminpopcornelmono.html?session=${snap.key}`);
+            lastNotifiedCreatedAt = createdAt;
+          }
+        }
+      });
+
+      knownSessions = value;
+      renderList();
+    });
+  }
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function formatTime(ts) {
+    if (!ts) return "";
+    return new Date(ts).toLocaleTimeString();
+  }
+
+  function selectSession(sessionId) {
+    if (activeSessionId === sessionId) return;
+
+    teardownActiveSession();
+    activeSessionId = sessionId;
+
+    emptyState.style.display = "none";
+    chatShell.style.display = "flex";
+
+    const info = (knownSessions[sessionId] || {}).user_info || {};
+    chatName.textContent = info.name || "Guest";
+    chatEmail.textContent = info.email || "";
+
+    messagesEl.innerHTML = "";
+    messagesListenerRef = db.ref(`support_chats/${sessionId}/messages`);
+    messagesListenerRef.on("child_added", (snap) => {
+      const msg = snap.val() || {};
+      const bubble = document.createElement("div");
+      bubble.className = `msg ${msg.sender === "admin" ? "admin" : "user"}`;
+      bubble.innerHTML = `${escapeHtml(msg.text)}<span class="ts">${formatTime(msg.timestamp)}</span>`;
+      messagesEl.appendChild(bubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      if (msg.sender === "user" && sessionId !== activeSessionId) {
+        showLocalNotification("New Message", msg.text || "", `/adminpopcornelmono.html?session=${sessionId}`);
+      }
+    });
+
+    statusListenerRef = db.ref(`support_chats/${sessionId}/user_info/status`);
+    statusListenerRef.on("value", (snap) => {
+      const status = snap.val() || "pending";
+      markActiveBtn.disabled = status === "active";
+      markResolvedBtn.disabled = status === "resolved";
+    });
+
+    watchScreenShareOffer(sessionId);
+    renderList();
+  }
+
+  function teardownActiveSession() {
+    const previousSessionId = activeSessionId;
+    if (messagesListenerRef) {
+      messagesListenerRef.off();
+      messagesListenerRef = null;
+    }
+    if (statusListenerRef) {
+      statusListenerRef.off();
+      statusListenerRef = null;
+    }
+    teardownScreenShare(previousSessionId);
+  }
+
+  composerForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = composerInput.value;
+    composerInput.value = "";
+    if (!activeSessionId || !text.trim()) return;
+
+    await db.ref(`support_chats/${activeSessionId}/messages`).push({
+      sender: "admin",
+      text: String(text).slice(0, 2000),
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+  });
+
+  markActiveBtn.addEventListener("click", () => {
+    if (!activeSessionId) return;
+    db.ref(`support_chats/${activeSessionId}/user_info/status`).set("active");
+  });
+
+  markResolvedBtn.addEventListener("click", () => {
+    if (!activeSessionId) return;
+    db.ref(`support_chats/${activeSessionId}/user_info/status`).set("resolved");
+  });
+
+  let pendingOffer = null;
+
+  function watchScreenShareOffer(sessionId) {
+    offerListenerRef = db.ref(`support_chats/${sessionId}/webrtc_signaling/offer`);
+    offerListenerRef.on("value", (snap) => {
+      const offer = snap.val();
+      pendingOffer = offer || null;
+      if (offer) {
+        screenEmpty.textContent = "User is offering to share their screen.";
+        screenStatus.textContent = "Offer received. Click \"Join screen share\" to view.";
+      } else if (!peerConnection) {
+        screenEmpty.textContent = "No active screen share offer.";
+        screenStatus.textContent = "";
+      }
+    });
+  }
+
+  joinScreenBtn.addEventListener("click", async () => {
+    if (!activeSessionId || !pendingOffer || peerConnection) return;
+
+    peerConnection = new RTCPeerConnection(RTC_CONFIG);
+
+    peerConnection.ontrack = (event) => {
+      screenVideo.srcObject = event.streams[0];
+      screenVideo.style.display = "block";
+      screenEmpty.style.display = "none";
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        db.ref(`support_chats/${activeSessionId}/webrtc_signaling/adminCandidates`).push(event.candidate.toJSON());
+      }
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      if (!peerConnection) return;
+      screenStatus.textContent = `Screen sharing: ${peerConnection.connectionState}`;
+    };
+
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    await db.ref(`support_chats/${activeSessionId}/webrtc_signaling/answer`).set({
+      type: answer.type,
+      sdp: answer.sdp
+    });
+
+    userCandidatesRef = db.ref(`support_chats/${activeSessionId}/webrtc_signaling/userCandidates`);
+    userCandidatesRef.on("child_added", async (snap) => {
+      const candidate = snap.val();
+      if (!candidate || !peerConnection) return;
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error("[admin] Failed to add user ICE candidate", error);
+      }
+    });
+
+    screenStatus.textContent = "Connecting...";
+  });
+
+  leaveScreenBtn.addEventListener("click", () => {
+    teardownScreenShare(activeSessionId);
+  });
+
+  function teardownScreenShare(targetSessionId) {
+    if (peerConnection) {
+      peerConnection.close();
+      peerConnection = null;
+    }
+    if (userCandidatesRef) {
+      userCandidatesRef.off();
+      userCandidatesRef = null;
+    }
+    if (offerListenerRef) {
+      offerListenerRef.off();
+      offerListenerRef = null;
+    }
+    screenVideo.srcObject = null;
+    screenVideo.style.display = "none";
+    screenEmpty.style.display = "block";
+    screenEmpty.textContent = "No active screen share offer.";
+    screenStatus.textContent = "";
+    if (targetSessionId) {
+      db.ref(`support_chats/${targetSessionId}/webrtc_signaling/answer`).remove();
+    }
+  }
+})();
+</script>
+</body>
+</html>
