@@ -12,8 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - project: "chat-283f4"
-            site: "minecr"        
+          - project: "minecr-975ad"
+            site: "minecr1"        
 
     steps:
       - uses: actions/checkout@v4
